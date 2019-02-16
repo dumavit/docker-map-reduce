@@ -1,0 +1,23 @@
+version: '3.3'
+services:
+  master:
+    build:
+      dockerfile: master/Dockerfile
+      context: .
+    container_name: master
+    env_file: config.env
+    ports:
+      - 5000:5000
+  worker:
+    build:
+      dockerfile: worker/Dockerfile
+      context: .
+    env_file: config.env
+    depends_on:
+      - master
+    links:
+      - master
+
+
+
+
