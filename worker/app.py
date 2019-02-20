@@ -10,15 +10,14 @@ import socketio
 HOST = os.getenv('WORKER_HOST', '127.0.0.1')
 PORT = os.getenv('SOCKET_PORT', 5000)
 OUTPUT_FOLDER = os.getenv('OUTPUT_FOLDER', 'output')
-SOCKET_SEND_LIMIT = 250000
 
 sio = socketio.Client()
 
 
-def map_reduce(files, map_fn, reduce_fn, worker_id):
+def perform_map_combine(files, map_fn, reduce_fn, worker_id):
     word_regex = r'(\w*)'
 
-    # Map part
+    # Map each record
     map_result = []
 
     for idx, file in enumerate(files):
@@ -39,7 +38,8 @@ def map_reduce(files, map_fn, reduce_fn, worker_id):
         else:
             grouped[key_out] = [value_out]
 
-    # Reduce part
+    # This is the so-called combiner
+    # Combiner reduces the data on each mapper before sending to master
     reduce_result = []
     for key_out, values_out in grouped.items():
         reduce_result.append(reduce_fn(key_out, values_out))
@@ -70,7 +70,7 @@ def set_worker(data):
     reduce_code = marshal.loads(data['reduce_fn'])
     reduce_fn = types.FunctionType(reduce_code, globals(), 'reduce_fn')
 
-    map_reduce(files, map_fn, reduce_fn, worker_id)
+    perform_map_combine(files, map_fn, reduce_fn, worker_id)
 
 
 @sio.on('disconnect')

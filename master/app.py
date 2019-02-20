@@ -11,8 +11,8 @@ from aiohttp import web
 HOST = os.getenv('MASTER_HOST', '0.0.0.0')
 PORT = int(os.getenv('SOCKET_PORT', 5000))
 CONNECTION_TIMEOUT = int(os.getenv('CONNECTION_TIMEOUT', 10))
-WORKERS_MAP_TIMEOUT = int(os.getenv('WORKERS_MAP_TIMEOUT', 60))
-REPLICAS_COUNT = int(os.getenv('REPLICAS_COUNT', 2))
+WORKERS_MAP_TIMEOUT = int(os.getenv('WORKERS_MAP_TIMEOUT', 120))
+REPLICAS_COUNT = int(os.getenv('REPLICAS_COUNT', 3))
 DATA_FOLDER = os.getenv('DATA_FOLDER', 'data')
 OUTPUT_FOLDER = os.getenv('OUTPUT_FOLDER', 'output')
 
@@ -22,9 +22,10 @@ app = web.Application()
 sio.attach(app)
 
 
-def split(a, n):
-    k, m = divmod(len(a), n)
-    return [a[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
+def split(arr, n):
+    '''Split array into chunks of the given size.'''
+    k, m = divmod(len(arr), n)
+    return [arr[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
 
 
 def map_fn(key_in, value_in):
@@ -38,6 +39,7 @@ def reduce_fn(key_out, values_out):
 @sio.on('connect')
 def connect(sid, environ):
     workers.append(sid)
+    # Server can speak to individual client only via room
     sio.enter_room(sid, sid)
     print('Worker connected: ', sid)
 
@@ -60,7 +62,7 @@ def worker_finished(sid):
 
 async def set_workers():
     splited_data = split(
-        [os.path.join(DATA_FOLDER, filename) for filename in os.listdir(DATA_FOLDER)[0:2]],
+        [os.path.join(DATA_FOLDER, filename) for filename in os.listdir(DATA_FOLDER)],
         REPLICAS_COUNT
     )
     map_fn_code = marshal.dumps(map_fn.__code__)
@@ -121,7 +123,7 @@ async def map_reduce_manager():
         await asyncio.sleep(0.5)
 
     print('All workers connected')
-    # Send map/reduce/data to workers
+    # Send map/reduce functions and data to workers
     await set_workers()
 
     # Wait for workers to finish the job
